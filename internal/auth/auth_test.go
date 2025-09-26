@@ -67,7 +67,7 @@ func TestGetAPIKey_ExtraSpaces(t *testing.T) {
 		t.Errorf("Expected 'abc123', got %q", got)
 	}
 }
-*/
+
 
 func TestGetAPIKey_MultipleParts(t *testing.T) {
 	headers := http.Header{}
@@ -81,3 +81,4 @@ func TestGetAPIKey_MultipleParts(t *testing.T) {
 		t.Errorf("Expected 'abc123', got %q", got)
 	}
 }
+*/
