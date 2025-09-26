@@ -23,7 +23,7 @@ jobs:
       - name: Run Go Tests
         run: go test ./...  
       
-      #- name: Run Go tests
-      #- name: Run CLI test
-      #  run: |
-      #    AUTH_HEADER="ApiKey testkey" go run cmd/notely/main.go
+      - name: Run Go tests
+      - name: Run CLI test
+        run: |
+          AUTH_HEADER="ApiKey testkey" go run cmd/notely/main.go
