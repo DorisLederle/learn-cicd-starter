@@ -37,9 +37,9 @@ jobs:
         with: 
           go-version: "1.25.1"
 
-      - name: Run Go Formatting
-        run: go fmt ./...
-
       - name: Run Test -z
         run: test -z "$(go fmt ./...)" 
+
+      - name: Run Go Formatting
+        run: go fmt ./...
    
