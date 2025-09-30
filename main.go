@@ -95,7 +95,7 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-func unused() {
+/*func unused() {
 	// this function does nothing
 	// and is called nowhere
-}
+}*/
