@@ -1,0 +1,25 @@
+# new workflow for continuous deployment
+# the ci workflow runs when a pull request is opened, 
+# but a cd workflow runs when a pull request is merged 
+# (or when code is pushed directly to the main branch).
+
+on: 
+  push:
+    branches: [main]
+
+jobs:
+  tests: 
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps: 
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Setup Go toolchain
+        uses: actions/setup-go@v5
+        with: 
+          go-version: "1.25.1"
+
+      - name: Build the app
+        uses: scripts/buildprod.sh
