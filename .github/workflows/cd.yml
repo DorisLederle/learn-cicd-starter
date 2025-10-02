@@ -5,10 +5,10 @@
 
 on: 
   push:
-    branches: [main]
+    branches: [addtests]  # zum Testen [addtests], für Produktion: [main]
 
 jobs:
-  tests: 
+  deploy: 
     name: Deploy
     runs-on: ubuntu-latest
 
