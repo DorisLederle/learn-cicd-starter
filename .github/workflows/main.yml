@@ -1,0 +1,30 @@
+# Die Datei, die bei jedem Push auf den main-Branch automatisch:
+# 1. Mit GCP authentifiziert
+# 2. Das Docker-Image baut
+# 3. Es in die Artifact Registry hochlaedt
+
+name: Build and Push to Artifact Registry
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
+          project_id: tensile-core-474113-t6
+          export_default_credentials: true
+
+      - name: Build and push Docker image
+        run: |
+          gcloud builds submit --tag us-central1-docker.pkg.dev/tensile-core-474113-t6/notely-ar-repo/notely:latest .
