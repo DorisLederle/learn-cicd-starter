@@ -1,41 +1,109 @@
-# new workflow for continuous deployment
-# the ci workflow runs when a pull request is opened,
-# but a cd workflow runs when a pull request is merged
-# (or when code is pushed directly to the main branch).
+#file cd.yml
+name: Continuous Deployment
 
 on:
   push:
-    branches: [addtests]  # zum Testen [addtests], für Produktion: [main]
+    branches: [ main ]
 
 jobs:
   deploy:
-    name: Deploy
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - name: Check out code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Go toolchain
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.1"
-
-      - name: Build the app
-        run: ./scripts/buildprod.sh
+      - name: Install goose
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          echo "${HOME}/go/bin" >> $GITHUB_PATH
 
       - name: Run database migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           echo "Running database migrations..."
-          ./scripts/migrate.sh
-          # oder z.B. go run cmd/migrate/main.go
+          ./scripts/migrateup.sh
 
-      - name: Deploy to Cloud Run
-        run: gcloud run deploy notely \
-          --image us-central1-docker.pkg.dev/tensile-core-474113-t6/notely-ar-repo/notely:latest \
-          --region us-central1 \
-          --allow-unauthenticated \
-          --project tensile-core-474113-t6 \
-          --max-instances=4
+      # Authenticate with Google Cloud
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # Install the Google Cloud SDK
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: tensile-core-474113-t6
+
+      # Explicitly activate and configure the service account
+      - name: Activate service account
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo "$GCP_SA_KEY" > /tmp/key.json
+          gcloud auth activate-service-account --key-file=/tmp/key.json
+          gcloud config set account "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+          gcloud config set project tensile-core-474113-t6
+
+      # Build and push your Docker image
+      - name: Build and push Docker image
+        env:
+          PROJECT_ID: tensile-core-474113-t6
+          REGION: us-central1
+          REPO: notely-ar-repo
+        run: |
+          echo "Authenticating Docker with GCP access token..."
+          echo "$(gcloud auth print-access-token)" | docker login -u oauth2accesstoken --password-stdin https://$REGION-docker.pkg.dev
+
+          VERSION_TAG=$(date +'%Y%m%d-%H%M%S')
+
+          echo "Building Docker image with tag: $VERSION_TAG"
+          docker build --platform=linux/amd64 -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/notely:$VERSION_TAG -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/notely:latest .
+
+          echo "Pushing Docker image..."
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/notely:$VERSION_TAG
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/notely:latest
+
+      - name: Deploy to Cloud Run (staging)
+        env:
+          PROJECT_ID: tensile-core-474113-t6
+          REGION: us-central1
+        run: |
+          echo "Deploying to STAGING environment..."
+          gcloud run deploy notely-staging \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/notely-ar-repo/notely:latest \
+            --region $REGION \
+            --allow-unauthenticated \
+            --platform managed
+    
+  deploy-production:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: tensile-core-474113-t6
+
+      - name: Deploy to Cloud Run (production)
+        env:
+          PROJECT_ID: tensile-core-474113-t6
+          REGION: us-central1
+          SERVICE: notely
+        run: |
+          echo "Deploying to PRODUCTION environment..."
+          gcloud run deploy $SERVICE \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/notely-ar-repo/notely:latest \
+            --region $REGION \
+            --allow-unauthenticated \
+            --platform managed
+          
